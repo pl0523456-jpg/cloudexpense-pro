@@ -35,6 +35,11 @@ class Expense(db.Model):
         db.Text,
         nullable=True
     )
+    
+    receipt_url = db.Column(
+        db.String(500),
+        nullable=True
+    )
 
     expense_date = db.Column(
         db.DateTime,
