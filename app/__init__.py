@@ -11,6 +11,7 @@ from app.auth.routes import auth_bp
 from app.expenses.routes import expense_bp
 from app.reports.routes import report_bp
 from app.admin.routes import admin_bp
+from app.approvals.routes import approval_bp
 
 # User model for Flask-Login
 from app.models.user import User
@@ -47,6 +48,7 @@ def create_app():
     app.register_blueprint(expense_bp)
     app.register_blueprint(report_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(approval_bp)
 
     return app
 

@@ -3,6 +3,7 @@ from flask_login import login_required, current_user
 
 from app.extensions import db
 from app.models.expense import Expense
+from app.models.approval import Approval
 
 
 expense_bp = Blueprint("expenses", __name__)
@@ -61,6 +62,10 @@ def expenses():
         if description is not None:
             description = description.strip()
 
+        # ------------------------------------------
+        # CREATE EXPENSE
+        # ------------------------------------------
+
         expense = Expense(
             user_id=current_user.id,
             title=title,
@@ -70,6 +75,23 @@ def expenses():
         )
 
         db.session.add(expense)
+
+        # Make sure expense.id is generated
+        # before creating the approval record.
+        db.session.flush()
+
+        # ------------------------------------------
+        # CREATE PENDING APPROVAL
+        # ------------------------------------------
+
+        approval = Approval(
+            expense_id=expense.id,
+            status="pending"
+        )
+
+        db.session.add(approval)
+
+        # Save Expense and Approval together
         db.session.commit()
 
         return jsonify({
@@ -160,6 +182,7 @@ def get_expense(expense_id):
         }
     }), 200
 
+
 # --------------------------------------------------
 # UPDATE EXPENSE
 # --------------------------------------------------
@@ -249,6 +272,7 @@ def update_expense(expense_id):
             )
         }
     }), 200
+
 
 # --------------------------------------------------
 # DELETE EXPENSE
