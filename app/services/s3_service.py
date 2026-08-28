@@ -48,3 +48,17 @@ def delete_receipt(object_key):
         Bucket=current_app.config["AWS_S3_BUCKET"],
         Key=object_key
     )
+
+def download_receipt(object_key):
+    """
+    Download a receipt object from the configured S3 bucket.
+    """
+
+    s3 = get_s3_client()
+
+    response = s3.get_object(
+        Bucket=current_app.config["AWS_S3_BUCKET"],
+        Key=object_key
+    )
+
+    return response

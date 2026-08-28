@@ -1,9 +1,11 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
+from uuid import uuid4
 from flask_login import login_required, current_user
 
 from app.extensions import db
 from app.models.expense import Expense
 from app.models.approval import Approval
+from app.services.s3_service import upload_receipt, download_receipt
 
 
 expense_bp = Blueprint("expenses", __name__)
@@ -298,3 +300,103 @@ def delete_expense(expense_id):
     return jsonify({
         "message": "Expense deleted successfully"
     }), 200
+
+# --------------------------------------------------
+# UPLOAD EXPENSE RECEIPT
+# --------------------------------------------------
+
+@expense_bp.route("/expenses/<int:expense_id>/receipt", methods=["POST"])
+@login_required
+def upload_expense_receipt(expense_id):
+
+    expense = Expense.query.filter_by(
+        id=expense_id,
+        user_id=current_user.id
+    ).first()
+
+    if expense is None:
+        return jsonify({
+            "error": "Expense not found"
+        }), 404
+
+    file = request.files.get("receipt")
+
+    if file is None:
+        return jsonify({
+            "error": "Receipt file is required"
+        }), 400
+
+    if not file.filename:
+        return jsonify({
+            "error": "Receipt filename is required"
+        }), 400
+
+    file_extension = ""
+
+    if "." in file.filename:
+        file_extension = "." + file.filename.rsplit(".", 1)[1].lower()
+
+    object_key = (
+        f"receipts/user-{current_user.id}/"
+        f"expense-{expense.id}/"
+        f"{uuid4().hex}{file_extension}"
+    )
+
+    upload_receipt(
+        file.stream,
+        object_key,
+        file.content_type
+    )
+
+    expense.receipt_url = object_key
+    db.session.commit()
+
+    return jsonify({
+        "message": "Receipt uploaded successfully",
+        "expense_id": expense.id,
+        "receipt_url": expense.receipt_url
+    }), 200
+
+# --------------------------------------------------
+# DOWNLOAD EXPENSE RECEIPT
+# --------------------------------------------------
+
+@expense_bp.route(
+    "/expenses/<int:expense_id>/receipt",
+    methods=["GET"]
+)
+@login_required
+def download_expense_receipt(expense_id):
+
+    expense = Expense.query.filter_by(
+        id=expense_id,
+        user_id=current_user.id
+    ).first()
+
+    if expense is None:
+        return jsonify({
+            "error": "Expense not found"
+        }), 404
+
+    if not expense.receipt_url:
+        return jsonify({
+            "error": "No receipt attached to this expense"
+        }), 404
+
+    try:
+        response = download_receipt(expense.receipt_url)
+
+        return send_file(
+            response["Body"],
+            mimetype=response.get(
+                "ContentType",
+                "application/octet-stream"
+            ),
+            as_attachment=True,
+            download_name=f"expense-{expense.id}-receipt"
+        )
+
+    except Exception:
+        return jsonify({
+            "error": "Unable to download receipt"
+        }), 500
